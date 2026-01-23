@@ -19,7 +19,7 @@ class Worker {
     private :
     const WorkerID id_;
     PackageQueueType qtype_; // W zaleznosci od qtype pracownik bedzie bral poczatek lub koniec wektora kolejki.
-    IPackageQueue queue_;
+    PackageQueue queue_;
 
 
 };
@@ -31,4 +31,5 @@ class Warehouse {
 
     private :
     const WarehouseID id_;
+    PackageStockpile queue_;
 };

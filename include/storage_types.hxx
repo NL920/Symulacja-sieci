@@ -13,15 +13,16 @@ IPackageStockpile uzyte bedzie w Warehouse
 - Umiesc polprodukt w konterze
 - Przegladaj produkty
 */
-class IPackageStockpile { 
+class PackageStockpile {
     public:
-    IPackageStockpile(){}
-    ~IPackageStockpile() = default;
+    PackageStockpile() = default;
+    ~PackageStockpile() = default;
 
-    void addPackage(const Package& product){inventory_.push_back(product);} 
+    void addPackage(const Package& product){inventory_.emplace_back(product);}
     unsigned int inventorySize() const {return inventory_.size();} // getter rozmiaru
+    // W zadaniu znajduje sie wymog const i nie const iteratorow po zawartosci, narazie pomijam bo niepotrzebne
 
-    private:
+    protected:
     std::list<Package> inventory_; // Domyslnie puste
 };
 
@@ -32,16 +33,14 @@ IPackageQueue uzyte bedzie w Worker
 - Usun produkt
 - Rozwija o dodanie typu kolejki
 */
-class IPackageQueue : public IPackageStockpile { 
+class PackageQueue : public PackageStockpile {
     public:
-    IPackageQueue(PackageQueueType const type) : type_(type){}
-    ~IPackageQueue() = default;
+    PackageQueue(PackageQueueType const type) : type_(type){}
+    ~PackageQueue() = default;
     
     // getter i setter (raczej adder xd) dziedziczone z IPackageStockpile
     Package getItem(); // Usuwa przedmiot z inventory_ zgodnie z type_, zwraca kopie usunietego półproduktu 
 
     private:
     PackageQueueType type_;
-    std::list<Package> inventory_;
-
 };

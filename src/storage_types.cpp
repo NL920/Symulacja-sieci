@@ -2,19 +2,19 @@
 #include <stdexcept>
 
 
-Package IPackageQueue::getItem(){
+Package PackageQueue::getItem(){
     if (inventory_.empty()){
         throw std::out_of_range("IPackageQueue::getItem Próba pobrania z pustego inventory_");
     }
     if(type_ == PackageQueueType::FIFO){ // Kolejka
-        Package product = inventory_.front();
-        inventory_.erase(inventory_.begin()); // iterator usuwa 1 element
+        Package product = std::move(inventory_.front()); // Pobieramy pierwszy
+        inventory_.pop_front();                         // Usuwamy pierwszy
         return product;
     }
 
     else if(type_ == PackageQueueType::LIFO){ // Stos
-        Package product = inventory_.back();
-        inventory_.pop_back(); // usuwa ostatni element
+        Package product = std::move(inventory_.back());  // Pobieramy ostatni
+        inventory_.pop_back();                          // Usuwamy ostatni
         return product;
     }
 
