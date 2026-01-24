@@ -8,10 +8,24 @@
 #include <memory>
 #include <stdexcept>
 #include <map>
-
+//do przejrzenia
 // Miejsce klas pracownika, magazynu i rampy
-class IPackageReceiver;
+
 class ReceiverPreferences;
+
+class IPackageReceiver {
+public:
+    using const_iterator = std::list<Package>::const_iterator;//to trzeba zmenić jakoś
+
+    virtual ~IPackageReceiver() = default;
+
+    virtual void receive_package(Package&& package) = 0;
+
+    virtual const_iterator begin() const = 0;
+    virtual const_iterator end() const = 0;
+
+    virtual ElementID get_id() const = 0;
+};
 
 class PackageSender {
 public:
@@ -24,16 +38,15 @@ public:
     }
 
     void send_package() {
-        if (!sending_buffer_) return;
+    if (!sending_buffer_) return;
 
-        IPackageReceiver* receiver = receiver_preferences.choose_receiver();
-        if (!receiver) {
-            throw std::runtime_error("PackageSender::send_package brak odbiorców");
-        }
+    IPackageReceiver* receiver = receiver_preferences.choose_receiver();
+    if (!receiver)return;
 
-        receiver->receive_package(std::move(*sending_buffer_));
-        sending_buffer_.reset();
+    receiver->receive_package(std::move(*sending_buffer_));
+    sending_buffer_.reset();
     }
+
 
     std::optional<Package>& get_sending_buffer() { return sending_buffer_; }
 
@@ -54,7 +67,9 @@ public:
 
     // odbiorca i metody z nim związane
     void add_receiver(IPackageReceiver* receiver) {
-        if (!receiver) return;
+       if (!receiver) {
+    throw std::invalid_argument("nullptr");
+    }
         prefs_[receiver] = 0.0;
         normalize_probabilities();
     }
@@ -64,7 +79,7 @@ public:
         normalize_probabilities();
     }
 
-    IPackageReceiver* choose_receiver() {
+    IPackageReceiver* choose_receiver() const {
         if (prefs_.empty()) return nullptr;
 
         double p = probability_generator_();
@@ -77,10 +92,14 @@ public:
     }
 
     const preferences_t& get_preferences() const { return prefs_; }
+    
+    preferences_t::iterator begin() { return prefs_.begin(); }
+    preferences_t::iterator end() { return prefs_.end(); }
+
     const_iterator begin() const { return prefs_.begin(); }
     const_iterator end() const { return prefs_.end(); }
 
-private:
+    private:
     preferences_t prefs_;
     std::function<double()> probability_generator_;
 
@@ -91,31 +110,92 @@ private:
     }
 };
 
-//----stare
-class Worker {
-    public :
-    Worker(WorkerID const ID,PackageQueueType const type) :
-    id_(ID),
-    qtype_(type), // Mozliwe ze informacja o tym jakiego typu jest pracownik LIFO czy FIFO moze byc uzyteczna
-    queue_(type) {}
-    ~Worker()=default;
+class Ramp : public PackageSender {
+public:
+    Ramp(ElementID id, TimeOffset di)
+        : id_(id), delivery_interval_(di) {}
 
+    void deliver_goods(Time t) {
+        if (t % delivery_interval_ == 0) {
+            push_package(Package{});
+            send_package();
+        }
+    }
 
+    ElementID get_id() const { return id_; }
+    TimeOffset get_delivery_interval() const { return delivery_interval_; }
 
-    private :
-    const WorkerID id_;
-    PackageQueueType qtype_; // W zaleznosci od qtype pracownik bedzie bral poczatek lub koniec wektora kolejki.
-    PackageQueue queue_;
-
-
+private:
+    ElementID id_;
+    TimeOffset delivery_interval_;
 };
 
-class Warehouse {
-    public :
-    Warehouse(WarehouseID const ID) : id_(ID) {}
-    ~Warehouse()=default;
+class Worker : public PackageSender, public IPackageReceiver {
+public:
+    using const_iterator = std::list<Package>::const_iterator;
 
-    private :
-    const WarehouseID id_;
-    PackageStockpile queue_;
+    Worker(ElementID id, TimeOffset pd, std::unique_ptr<PackageQueue> q)
+        : id_(id),
+          processing_duration_(pd),
+          queue_(std::move(q)),
+          current_package_(std::nullopt),
+          package_processing_start_time_(0) {}
+
+    void receive_package(Package&& pkg) override {
+        queue_->addPackage(pkg);  // bo nie ma push()
+    }
+
+    void do_work(Time t) {
+        if (!current_package_ && queue_->inventorySize() > 0) {
+            current_package_ = queue_->getItem();
+            package_processing_start_time_ = t;
+        }
+
+        if (current_package_ &&
+            t - package_processing_start_time_ >= processing_duration_) {
+
+            push_package(std::move(*current_package_));
+            send_package();
+            current_package_.reset();
+        }
+    }
+
+    const_iterator begin() const override { return queue_->begin(); }
+    const_iterator end() const override { return queue_->end(); }
+
+    ElementID get_id() const override { return id_; }
+
+
+    Time get_package_processing_start_time() const { return package_processing_start_time_; }
+    TimeOffset get_processing_duration() const { return processing_duration_; }
+
+private:
+    ElementID id_;
+    TimeOffset processing_duration_;
+    std::unique_ptr<PackageQueue> queue_;
+    std::optional<Package> current_package_;
+    Time package_processing_start_time_;
+};
+
+class Storehouse : public IPackageReceiver {
+public:
+    Storehouse(ElementID id,
+               std::unique_ptr<PackageStockpile> d =
+                   std::make_unique<PackageStockpile>())
+        : id_(id), stockpile_(std::move(d)) {}
+
+    void receive_package(Package&& package) override {
+        stockpile_->push(std::move(package));
+    }
+
+    ElementID get_id() const override { return id_; }
+
+    using const_iterator = PackageStockpile::const_iterator;
+
+    const_iterator begin() const override { return stockpile_->begin(); }
+    const_iterator end() const override { return stockpile_->end(); }
+
+private:
+    ElementID id_;
+    std::unique_ptr<PackageStockpile> stockpile_;
 };
