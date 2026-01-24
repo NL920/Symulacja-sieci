@@ -3,4 +3,4 @@
 
 using ElementID = unsigned int;
 using WorkerID = unsigned int;
-using WarehouseID = unsigned int;
+using StorehouseID = unsigned int;
