@@ -86,9 +86,9 @@ public:
     virtual ~PackageSender() = default;
 
     void push_package(Package&& pkg) {
-        sending_buffer_.emplace(std::move(pkg));
+    if (sending_buffer_.has_value()) return;
+    sending_buffer_ = std::move(pkg);
     }
-
     void send_package() {
     if (!sending_buffer_) return;
 
@@ -117,9 +117,8 @@ public:
         : id_(id), delivery_interval_(di) {}
 
     void deliver_goods(Time t) {
-        if (t % delivery_interval_ == 0) {
-            push_package(Package{});
-            send_package();
+    if (t % delivery_interval_ == 0) {
+        push_package(Package{});
         }
     }
 
@@ -148,15 +147,14 @@ public:
 
     void do_work(Time t) {
         if (!current_package_ && queue_->size() > 0) {
-            current_package_ .emplace(queue_->pop());
+            current_package_.emplace(queue_->pop());
             package_processing_start_time_ = t;
         }
-
+    
         if (current_package_ &&
-            t - package_processing_start_time_ >= processing_duration_) {
+            t - package_processing_start_time_ +1 >= processing_duration_) {
 
             push_package(std::move(*current_package_));
-            send_package();
             current_package_.reset();
         }
     }
