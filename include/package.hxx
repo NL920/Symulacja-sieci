@@ -7,15 +7,18 @@ class Package {
 public:
     Package();
 
-    Package(const Package&) = default;
-    Package(Package&&) = default;
+    explicit Package(ElementID id) : id_(id) {
+        assigned_ids_.insert(id_);
+    }
 
+    Package(Package&& package) : id_(package.id_) {}
+    Package& operator=(Package&& package) noexcept;
     ~Package(); //
 
     ElementID get_id() const { return id_; }
 
 private:
-    const ElementID id_;
+    ElementID id_;
 
     static std::set<ElementID> assigned_ids_;
     static std::set<ElementID> freed_ids_;

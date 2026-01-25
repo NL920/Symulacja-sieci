@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 
-Package PackageQueue::getItem(){
+Package PackageQueue::pop(){
     if (inventory_.empty()){
         throw std::out_of_range("IPackageQueue::getItem Próba pobrania z pustego inventory_");
     }

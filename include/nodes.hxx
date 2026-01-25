@@ -8,10 +8,9 @@
 #include <memory>
 #include <stdexcept>
 #include <map>
+#include <functional>
 //do przejrzenia
 // Miejsce klas pracownika, magazynu i rampy
-
-class ReceiverPreferences;
 
 class IPackageReceiver {
 public:
@@ -27,42 +26,12 @@ public:
     virtual ElementID get_id() const = 0;
 };
 
-class PackageSender {
-public:
-    PackageSender() = default;
-    PackageSender(PackageSender&&) = default;
-    virtual ~PackageSender() = default;
-
-    void push_package(Package&& pkg) {
-        sending_buffer_ = std::move(pkg);
-    }
-
-    void send_package() {
-    if (!sending_buffer_) return;
-
-    IPackageReceiver* receiver = receiver_preferences.choose_receiver();
-    if (!receiver)return;
-
-    receiver->receive_package(std::move(*sending_buffer_));
-    sending_buffer_.reset();
-    }
-
-
-    std::optional<Package>& get_sending_buffer() { return sending_buffer_; }
-
-    ReceiverPreferences receiver_preferences;  // publiczne pole
-
-protected:
-    std::optional<Package> sending_buffer_;
-};
-
-
 class ReceiverPreferences {
 public:
     using preferences_t = std::map<IPackageReceiver*, double>;
     using const_iterator = preferences_t::const_iterator;
 
-    ReceiverPreferences(std::function<double()> pg = probability_generator) 
+    ReceiverPreferences(std::function<double()> pg = probability_generator)
         : probability_generator_(pg) {}
 
     // odbiorca i metody z nim związane
@@ -92,7 +61,7 @@ public:
     }
 
     const preferences_t& get_preferences() const { return prefs_; }
-    
+
     preferences_t::iterator begin() { return prefs_.begin(); }
     preferences_t::iterator end() { return prefs_.end(); }
 
@@ -109,6 +78,38 @@ public:
         for (auto& [_, prob] : prefs_) prob = equal_prob;
     }
 };
+
+class PackageSender {
+public:
+    PackageSender() = default;
+    PackageSender(PackageSender&&) = default;
+    virtual ~PackageSender() = default;
+
+    void push_package(Package&& pkg) {
+        sending_buffer_.emplace(std::move(pkg));
+    }
+
+    void send_package() {
+    if (!sending_buffer_) return;
+
+    IPackageReceiver* receiver = receiver_preferences.choose_receiver();
+    if (!receiver)return;
+
+    receiver->receive_package(std::move(*sending_buffer_));
+    sending_buffer_.reset();
+    }
+
+
+    std::optional<Package>& get_sending_buffer() { return sending_buffer_; }
+
+    ReceiverPreferences receiver_preferences;  // publiczne pole
+
+protected:
+    std::optional<Package> sending_buffer_;
+};
+
+
+
 
 class Ramp : public PackageSender {
 public:
@@ -142,12 +143,12 @@ public:
           package_processing_start_time_(0) {}
 
     void receive_package(Package&& pkg) override {
-        queue_->addPackage(pkg);  // bo nie ma push()
+        queue_->push(std::move(pkg));  //
     }
 
     void do_work(Time t) {
-        if (!current_package_ && queue_->inventorySize() > 0) {
-            current_package_ = queue_->getItem();
+        if (!current_package_ && queue_->size() > 0) {
+            current_package_ .emplace(queue_->pop());
             package_processing_start_time_ = t;
         }
 
@@ -180,8 +181,8 @@ private:
 class Storehouse : public IPackageReceiver {
 public:
     Storehouse(ElementID id,
-               std::unique_ptr<PackageStockpile> d =
-                   std::make_unique<PackageStockpile>())
+               std::unique_ptr<PackageQueue> d =
+                   std::make_unique<PackageQueue>(PackageQueueType::FIFO))
         : id_(id), stockpile_(std::move(d)) {}
 
     void receive_package(Package&& package) override {
@@ -190,12 +191,12 @@ public:
 
     ElementID get_id() const override { return id_; }
 
-    using const_iterator = PackageStockpile::const_iterator;
+    using const_iterator = PackageQueue::const_iterator;
 
     const_iterator begin() const override { return stockpile_->begin(); }
     const_iterator end() const override { return stockpile_->end(); }
 
 private:
     ElementID id_;
-    std::unique_ptr<PackageStockpile> stockpile_;
+    std::unique_ptr<PackageQueue> stockpile_;
 };

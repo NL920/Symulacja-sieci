@@ -24,3 +24,13 @@ Package::~Package() {
     assigned_ids_.erase(id_);
     freed_ids_.insert(id_);
 }
+
+Package& Package::operator=(Package&& package) noexcept {
+    if (this == &package)
+        return *this;
+    assigned_ids_.erase(id_);
+    freed_ids_.insert(id_);
+    this->id_ = package.id_;
+    assigned_ids_.insert(id_);
+    return *this;
+}
