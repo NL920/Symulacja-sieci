@@ -9,12 +9,12 @@
 #include <stdexcept>
 #include <map>
 #include <functional>
-//do przejrzenia
+
 // Miejsce klas pracownika, magazynu i rampy
 
 class IPackageReceiver {
 public:
-    using const_iterator = std::list<Package>::const_iterator;//to trzeba zmenić jakoś
+    using const_iterator = std::list<Package>::const_iterator;
 
     virtual ~IPackageReceiver() = default;
 
@@ -22,6 +22,9 @@ public:
 
     virtual const_iterator begin() const = 0;
     virtual const_iterator end() const = 0;
+    
+    virtual const_iterator cbegin() const = 0;
+    virtual const_iterator cend() const = 0;
 
     virtual ElementID get_id() const = 0;
 };
@@ -86,13 +89,13 @@ public:
     virtual ~PackageSender() = default;
 
     void push_package(Package&& pkg) {
-    if (sending_buffer_.has_value()) return;
-    sending_buffer_ = std::move(pkg);
+    sending_buffer_ = std::move(pkg);  
     }
+
     void send_package() {
     if (!sending_buffer_) return;
 
-    IPackageReceiver* receiver = receiver_preferences.choose_receiver();
+    IPackageReceiver* receiver = receiver_preferences_.choose_receiver();
     if (!receiver)return;
 
     receiver->receive_package(std::move(*sending_buffer_));
@@ -102,7 +105,7 @@ public:
 
     std::optional<Package>& get_sending_buffer() { return sending_buffer_; }
 
-    ReceiverPreferences receiver_preferences;  // publiczne pole
+    ReceiverPreferences receiver_preferences_;  
 
 protected:
     std::optional<Package> sending_buffer_;
@@ -116,11 +119,11 @@ public:
     Ramp(ElementID id, TimeOffset di)
         : id_(id), delivery_interval_(di) {}
 
-    void deliver_goods(Time t) {
-    if (t % delivery_interval_ == 0) {
+void deliver_goods(Time t) {
+    if (t >= 1 && (t - 1) % delivery_interval_ == 0) {
         push_package(Package{});
-        }
     }
+}
 
     ElementID get_id() const { return id_; }
     TimeOffset get_delivery_interval() const { return delivery_interval_; }
@@ -161,6 +164,8 @@ public:
 
     const_iterator begin() const override { return queue_->begin(); }
     const_iterator end() const override { return queue_->end(); }
+    const_iterator cbegin() const override { return begin(); }
+    const_iterator cend() const override { return end(); }
 
     ElementID get_id() const override { return id_; }
 
@@ -193,7 +198,8 @@ public:
 
     const_iterator begin() const override { return stockpile_->begin(); }
     const_iterator end() const override { return stockpile_->end(); }
-
+    const_iterator cbegin() const override { return begin(); }
+    const_iterator cend() const override { return end(); }
 private:
     ElementID id_;
     std::unique_ptr<PackageQueue> stockpile_;
