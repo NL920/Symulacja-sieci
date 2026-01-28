@@ -172,7 +172,7 @@ public:
 
     Time get_package_processing_start_time() const { return package_processing_start_time_; }
     TimeOffset get_processing_duration() const { return processing_duration_; }
-
+    PackageQueue* get_queue() const { return queue_.get(); } 
 private:
     ElementID id_;
     TimeOffset processing_duration_;
